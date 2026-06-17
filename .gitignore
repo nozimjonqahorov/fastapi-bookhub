@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.venv/
+.envgit add .
+git commit -m "Merge remote and local changes, remove pycache from tracking"
