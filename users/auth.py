@@ -1,12 +1,11 @@
 import re
 from fastapi import status
-from fastapi.exceptions import HTTPException
-from fastapi_jwt_auth2 import AuthJWT
-from sqlalchemy.orm import Session
+from fastapi.exceptions import HTTPException                                           
+from fastapi_jwt_auth2 import AuthJWT                                    
+from sqlalchemy.orm import Session                                                
 from werkzeug.security import generate_password_hash, check_password_hash
-from db import get_db
-from .models import User
-from .schema import SignUpSchema, LoginSchema
+from .models import User, BlackListToken
+from .schema import SignUpSchema, LoginSchema, ProfileUpdateSchema, ChangePasswordSchema
 from fastapi_jwt_auth2.exceptions import AuthJWTException
 
 def check_user(db: Session, column, value):
@@ -32,8 +31,6 @@ def check_pass(password, conf_password=None):
     
     if password and conf_password and password != conf_password:
         raise HTTPException(status_code=400, detail='Parollar mos emas')
-
-    
         
     return True
 
@@ -75,9 +72,6 @@ def login(data: LoginSchema, db: Session, Authorize: AuthJWT):
     refresh_token = Authorize.create_refresh_token(subject=str(db_user.id))
     access_token = Authorize.create_access_token(subject=str(db_user.id))
 
-    print("ACCESS TOKEN TYPE:", type(access_token))
-    print("ACCESS TOKEN VALUE:", access_token)
-
     return {
         "msg": 'login',
         'access': access_token.decode() if isinstance(access_token, bytes) else access_token,
@@ -102,3 +96,98 @@ def get_profile(Authorize: AuthJWT, db: Session):
             detail={"msg": "Foydalanuvchi topilmadi"}
         )
     return user
+
+def profile_update(Authorize:AuthJWT, data : ProfileUpdateSchema, db : Session):
+    try:
+        Authorize.jwt_required()  
+    except AuthJWTException as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"msg": e.message}
+        ) 
+    user_id = Authorize.get_jwt_subject()
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"msg": "Foydalanuvchi topilmadi"}
+        )
+    
+    for i, j in data.model_dump(exclude_unset=True).items():
+        setattr(user, i, j)
+
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+def change_password(data : ChangePasswordSchema, Authorize : AuthJWT, db: Session):
+    try:
+        Authorize.jwt_required()  
+    except AuthJWTException as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"msg": e.message}
+        ) 
+    
+    user_id = Authorize.get_jwt_subject()
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"msg": "Foydalanuvchi topilmadi"}
+        )
+    old_passwod = data.old_password
+
+    if old_passwod == data.new_password:
+        raise HTTPException(detail="Yangi parol va eski parol bir xil bo'lishi mumkin emas", status_code=400)
+    
+    if not check_password_hash(user.password, old_passwod):
+        raise HTTPException(detail="Eski parol xato!", status_code=400)
+    
+    check_pass(data.new_password, data.confirm_password)
+
+    user.password = generate_password_hash(data.new_password)
+    db.commit()
+    db.refresh(user)
+
+    return {"msg":"Password changed", "status":status.HTTP_200_OK}
+        
+
+def token_refresh(Authorize: AuthJWT, db: Session):
+    try:
+        Authorize.jwt_refresh_token_required()
+        user_id = Authorize.get_jwt_subject()
+        access = Authorize.create_access_token(subject=str(user_id))
+        return {
+            'msg': 'new access token',
+            'access_token': access
+        }
+        
+    except:
+        raise HTTPException(detail='Token error', status_code=status.HTTP_400_BAD_REQUEST)
+    
+
+
+def logout(Authorize: AuthJWT, db: Session):
+    try:
+        Authorize.jwt_refresh_token_required()
+        
+    except:
+        raise HTTPException(detail={
+            'msg': f'Token error',
+            'status': status.HTTP_400_BAD_REQUEST
+        }, status_code=status.HTTP_400_BAD_REQUEST)
+        
+    else:
+        jti = Authorize.get_raw_jwt()['jti']
+        token = BlackListToken(jti=jti)
+        
+        db.add(token)
+        db.commit()
+        db.refresh(token)
+        
+        return {
+            'msg': 'Logout',
+        }

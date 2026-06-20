@@ -68,5 +68,4 @@ class Saved(Base):
 
     book = relationship('Book')
     
-    
-        
+ 

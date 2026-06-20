@@ -45,5 +45,5 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-app.include_router(auth_router)
-app.include_router(book_router)
+app.include_router(auth_router, prefix="/auth")
+app.include_router(book_router, prefix="/books")
