@@ -1,19 +1,16 @@
 from db import Base
-from sqlalchemy import Column, String, Integer, Numeric, Text, Boolean, \
-    ForeignKey, func, DateTime
+from sqlalchemy import Column, String, Integer, Text, ForeignKey, func, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
-
 
 class Author(Base):
     __tablename__ = 'authors'
     
     id = Column(Integer, primary_key=True)
-    name = Column(String(120))
-    year = Column(Integer)
+    fullname = Column(String(120))
     created_at = Column(DateTime, default=func.now())
     
-    
     books = relationship('Book', back_populates='author')
+
 
 class Category(Base):
     __tablename__ = 'categories'
@@ -21,7 +18,6 @@ class Category(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(120))
     created_at = Column(DateTime, default=func.now())
-
     
     books = relationship('Book', back_populates='category')
 
@@ -31,10 +27,8 @@ class Book(Base):
     
     id = Column(Integer, primary_key=True)
     title = Column(String(120))
-    year = Column(Integer)
-    price = Column(Numeric(12, 2))
+    image = Column(String(120), nullable=True)
     desc = Column(Text, nullable=True)
-    is_published = Column(Boolean, default=True)
     author_id = Column(Integer, ForeignKey('authors.id', ondelete='CASCADE'))
     category_id = Column(Integer, ForeignKey('categories.id', ondelete='CASCADE'))
     created_at = Column(DateTime, default=func.now())
@@ -42,30 +36,35 @@ class Book(Base):
     
     author = relationship('Author', back_populates='books')
     category = relationship('Category', back_populates='books')
-    comments = relationship('Comment', back_populates='book')
+    reviews = relationship('Review', back_populates='book')
     
     
-class Comment(Base):
-    __tablename__ = 'comments'
+class Review(Base):
+    __tablename__ = 'reviews'
     
     id = Column(Integer, primary_key=True)
-    summary = Column(String(120))
-    user = Column(String(12))
+    summary = Column(Text, nullable=False)
+    rating = Column(Integer)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'))
     book_id = Column(Integer, ForeignKey('books.id', ondelete='CASCADE'))
     created_at = Column(DateTime, default=func.now())
 
+    user = relationship('User', back_populates='reviews')
+    book = relationship('Book', back_populates='reviews')
     
-    book = relationship('Book', back_populates='comments')
-    
-class Saved(Base):
-    __tablename__ = 'saveds'
+class Wishlist(Base):
+    __tablename__ = 'wishlists'
     
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('authors.id', ondelete='CASCADE'))
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'))
     book_id = Column(Integer, ForeignKey('books.id', ondelete='CASCADE'))
     created_at = Column(DateTime, default=func.now())
 
 
     book = relationship('Book')
+    user = relationship('User', back_populates='wishlists')
     
- 
+    __table_args__ = (
+        UniqueConstraint('user_id', 'book_id', name='uq_user_book'),
+    )
+

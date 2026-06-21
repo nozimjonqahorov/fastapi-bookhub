@@ -1,6 +1,8 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import timedelta
+from .models import UserRole
+
 
 class SignUpSchema(BaseModel):
     first_name: str
@@ -34,7 +36,7 @@ class UserResponseSchema(BaseModel):
     username: str
     email: EmailStr
     phone_number: str
-    password : str
+    role: UserRole
 
     model_config = {
         "from_attributes": True
@@ -50,9 +52,11 @@ class LoginSchema(BaseModel):
     }
 
 class Settings(BaseModel):
-    authjwt_secret_key : str = "5ca41016b054e7108c240380ef69e38c05a3e415dffd13a2a2078ef6410f4ef2"
-    authjwt_access_token_expires : timedelta = timedelta(minutes=40)
-    authjwt_refresh_token_expires : timedelta = timedelta(days=1)
+    authjwt_secret_key: str = "5ca41016b054e7108c240380ef69e38c05a3e415dffd13a2a2078ef6410f4ef2"
+    authjwt_access_token_expires: timedelta = timedelta(days=1)
+    authjwt_refresh_token_expires: timedelta = timedelta(days=1)
+    authjwt_denylist_enabled: bool = True
+    authjwt_denylist_token_checks: set = {"refresh"}
 
 class ProfileUpdateSchema(BaseModel):
     first_name: Optional[str] = None

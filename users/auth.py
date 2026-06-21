@@ -7,6 +7,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from .models import User, BlackListToken
 from .schema import SignUpSchema, LoginSchema, ProfileUpdateSchema, ChangePasswordSchema
 from fastapi_jwt_auth2.exceptions import AuthJWTException
+from permissions import get_current_user
+
+
 
 def check_user(db: Session, column, value):
     user = db.query(User).filter(column == value).first()
@@ -80,72 +83,52 @@ def login(data: LoginSchema, db: Session, Authorize: AuthJWT):
 
 
 def get_profile(Authorize: AuthJWT, db: Session):
-    try:
-        Authorize.jwt_required()  
-    except AuthJWTException as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"msg": e.message}
-        ) 
-    current_user_id = Authorize.get_jwt_subject()
-    
-    user = db.query(User).filter(User.id == int(current_user_id)).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"msg": "Foydalanuvchi topilmadi"}
-        )
+    user = get_current_user(Authorize, db)
     return user
 
-def profile_update(Authorize:AuthJWT, data : ProfileUpdateSchema, db : Session):
-    try:
-        Authorize.jwt_required()  
-    except AuthJWTException as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"msg": e.message}
-        ) 
-    user_id = Authorize.get_jwt_subject()
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"msg": "Foydalanuvchi topilmadi"}
-        )
-    
+def profile_update(Authorize: AuthJWT, data: ProfileUpdateSchema, db: Session):
+    user = get_current_user(Authorize, db)
+
+    if data.email and user.email == data.email:
+        raise HTTPException(status_code=400, detail="Yangi email eskisidan farq qilinishi kerak")
+    if data.email:
+        exists = db.query(User).filter(User.email == data.email).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="Bu email allaqachon band qilingan")
+
+    if data.phone_number and user.phone_number == data.phone_number:
+        raise HTTPException(status_code=400, detail="Yangi telefon raqam eskisidan farq qilinishi kerak")
+    if data.phone_number:
+        exists = db.query(User).filter(User.phone_number == data.phone_number).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="Bu telefon raqam allaqachon band qilingan")
+
+    if data.username and user.username == data.username:
+        raise HTTPException(status_code=400, detail="Yangi username eskisidan farq qilinishi kerak")
+    if data.username:
+        exists = db.query(User).filter(User.username == data.username).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="Bu username allaqachon band qilingan")
+
     for i, j in data.model_dump(exclude_unset=True).items():
         setattr(user, i, j)
 
     db.commit()
     db.refresh(user)
-
     return user
 
 
 def change_password(data : ChangePasswordSchema, Authorize : AuthJWT, db: Session):
-    try:
-        Authorize.jwt_required()  
-    except AuthJWTException as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"msg": e.message}
-        ) 
+    user = get_current_user(Authorize, db)
+    old_password = data.old_password
     
-    user_id = Authorize.get_jwt_subject()
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"msg": "Foydalanuvchi topilmadi"}
-        )
-    old_passwod = data.old_password
-
-    if old_passwod == data.new_password:
-        raise HTTPException(detail="Yangi parol va eski parol bir xil bo'lishi mumkin emas", status_code=400)
-    
-    if not check_password_hash(user.password, old_passwod):
+    if not check_password_hash(user.password, old_password):
         raise HTTPException(detail="Eski parol xato!", status_code=400)
     
+    if old_password == data.new_password:
+        raise HTTPException(detail="Yangi parol va eski parol bir xil bo'lishi mumkin emas", status_code=400)
+    
+
     check_pass(data.new_password, data.confirm_password)
 
     user.password = generate_password_hash(data.new_password)

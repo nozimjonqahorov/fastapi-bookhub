@@ -1,4 +1,9 @@
 __pycache__/
 *.pyc
-.venv/
+*.pyo
 .env
+.venv/
+env/
+.vscode/
+.idea/
+*.egg-info/

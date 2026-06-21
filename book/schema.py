@@ -1,90 +1,125 @@
-from pydantic import BaseModel, Field
-from typing import Optional
-from decimal import Decimal
 
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional, List
+from datetime import datetime
 
-class CreateAuthorSchema(BaseModel):
-    name : Optional[str] = None
-    year: int
-    
-    class Config:
-        from_attribute=True
-        extra_kwargs = {
-            'name': 'Falonchi',
-            'year': 1900
-        }
-        
-class AuthorAut(CreateAuthorSchema):
-    pass
-    
-    
-class UpdateAuthorSchema(CreateAuthorSchema):
-    year: Optional[int] = None
-    
-    class Config:
-        from_attribute=True
+class AuthorSchema(BaseModel):
+    fullname: str = Field(max_length=120)
 
-    
-class CreateCategorySchema(BaseModel):
+    model_config = {"from_attributes": True}
+
+class AuthorResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id : int
+    fullname: str
+    created_at: Optional[datetime] = None
+
+class UpdateAuthorSchema(BaseModel):
+    fullname: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+class CategorySchema(BaseModel):
     title : str = Field(max_length=100)
-    class Config:
-        from_attribute=True
+
+    model_config = {"from_attributes": True}
     
 class UpdateCategorySchema(BaseModel):
     title: Optional[str] = None
-    
-    class Config:
-        from_attribute=True
+
+    model_config = {"from_attributes": True}
     
 
-class CreateBookSchema(BaseModel):
+class CategoryResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id : int
+    title: str
+    created_at: Optional[datetime] = None
+
+class BookSchema(BaseModel):
     title : str = Field(max_length=100)
-    year : Optional[int] = None
+    image : Optional[str] = None
     desc : Optional[str] = None
-    price : Decimal = Field(max_digits=1200, decimal_places=2)
     author_id : int
     category_id : int
-    is_published : Optional[bool] = None
-    
-    class Config:
-        from_attribute=True
+
+    model_config = {"from_attributes": True}
     
     
-class UpdateBookSchema(CreateBookSchema):
+class UpdateBookSchema(BaseModel):
     title : Optional[str] = None
-    price : Optional[float] = Field(default=None, max_digits=12, decimal_places=2, ge=0)
+    image : Optional[str] = None
+    desc : Optional[str] = None
     author_id : Optional[int] = None
     category_id : Optional[int] = None
-    
-    class Config:
-        from_attribute=True
-    
 
-class CreateCommentSchema(BaseModel):
-    summary : str = Field(max_length=100)
-    user : str
-    book_id : int
+    model_config = {"from_attributes": True}
     
-    class Config:
-        from_attribute=True
-    
-    
-class UpdateCommentSchema(BaseModel):
-    summary : Optional[str]  = Field(default=None, max_length=100)
+class BookShortResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attribute=True
+    id: int
+    title: str
+    image: Optional[str] = None
+    desc: Optional[str] = None
+    created_at: Optional[datetime] = None
+    author: Optional[AuthorResponseSchema] = None
+    category: Optional[CategoryResponseSchema] = None
 
-class CreateSavedSchema(BaseModel):
-    user_id : int
-    book_id : int
+
+class ReviewResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    summary: str
+    rating: int
+    created_at: Optional[datetime] = None
+    username: Optional[str] = None
+
+
+class BookDetailResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    image: Optional[str] = None
+    desc: Optional[str] = None
+    author: AuthorResponseSchema
+    category: CategoryResponseSchema
+    avg_rating: Optional[float] = None
+    reviews_count: int = 0
+    reviews: List[ReviewResponseSchema] = []
+
+
+class ReviewSchema(BaseModel):
+    summary: str = Field(max_length=1500)
+    rating: int = Field(ge=1, le=10)
+    book_id: int
+
+    model_config = {"from_attributes": True}
     
-    class Config:
-        from_attribute=True
+    
+class UpdateReviewSchema(BaseModel):
+    summary: Optional[str] = Field(default=None, max_length=1500)
+    rating: Optional[int] = Field(default=None, ge=1, le=10)
+
+    model_config = {"from_attributes": True}
+
+
+class WishlistSchema(BaseModel):
+    book_id: int
+
+    model_config = {"from_attributes": True}
         
     
     
-    
+class WishlistResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    wishlist_id: int
+    book_id: int
+    title: str
+    image: Optional[str] = None
     
     
     

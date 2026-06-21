@@ -24,11 +24,11 @@ def profile(Authorize: AuthJWT = Depends(), db: Session = Depends(get_db)):
 
 
 @router.patch("/profile-update", response_model=UserResponseSchema)
-def prodile_update_router(data:ProfileUpdateSchema, Authorize:AuthJWT = Depends(), db: Session = Depends(get_db)):
+def profile_update_router(data:ProfileUpdateSchema, Authorize:AuthJWT = Depends(), db: Session = Depends(get_db)):
     return auth.profile_update(Authorize, data, db)
 
 @router.patch("/change-password")
-def prodile_update_router(data:ChangePasswordSchema, Authorize:AuthJWT = Depends(), db: Session = Depends(get_db)):
+def change_password_router(data:ChangePasswordSchema, Authorize:AuthJWT = Depends(), db: Session = Depends(get_db)):
     return auth.change_password(data, Authorize, db)
 
 @router.get('/token-refresh')
