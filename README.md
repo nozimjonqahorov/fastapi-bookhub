@@ -1,6 +1,6 @@
 # Bookshop API
 
-Kitob katalogi va sharh/reyting platformasi — FastAPI asosida qurilgan REST API.
+Kitob katalogi va sharh/reyting platformasi — FastAPI asosida qurilgan.
 
 ## Texnologiyalar
 
