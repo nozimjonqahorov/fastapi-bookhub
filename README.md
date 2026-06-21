@@ -1,4 +1,4 @@
-# Bookshop API
+# Bookhub API
 
 Kitob katalogi va sharh/reyting platformasi — FastAPI asosida qurilgan.
 
@@ -68,7 +68,7 @@ Swagger UI'dagi "Authorize" tugmasi orqali `Bearer <token>` ko'rinishida kiritin
 ## Loyiha tuzilishi
 
 ```
-book_shop/
+bookhub/
 ├── main.py
 ├── db.py
 ├── permissions.py

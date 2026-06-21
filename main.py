@@ -38,7 +38,7 @@ def custom_openapi():
         return app.openapi_schema
 
     openapi_schema = get_openapi(
-        title="Book Shop API",
+        title="Bookhub API",
         version="1.0.0",
         description="JWT Autentifikatsiya bilan himoyalangan API",
         routes=app.routes,
