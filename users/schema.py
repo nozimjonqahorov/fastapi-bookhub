@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr
+import os
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import timedelta
 from .models import UserRole
@@ -52,11 +53,14 @@ class LoginSchema(BaseModel):
     }
 
 class Settings(BaseModel):
-    authjwt_secret_key: str = "5ca41016b054e7108c240380ef69e38c05a3e415dffd13a2a2078ef6410f4ef2"
+    authjwt_secret_key: str = Field(default_factory=lambda: os.getenv(
+        "AUTHJWT_SECRET_KEY",
+        "change-me-in-production"
+    ))
     authjwt_access_token_expires: timedelta = timedelta(days=1)
     authjwt_refresh_token_expires: timedelta = timedelta(days=1)
     authjwt_denylist_enabled: bool = True
-    authjwt_denylist_token_checks: set = {"refresh"}
+    authjwt_denylist_token_checks: set = {"refresh", "access"}
 
 class ProfileUpdateSchema(BaseModel):
     first_name: Optional[str] = None

@@ -1,5 +1,12 @@
-from fastapi import FastAPI
+import os
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi_jwt_auth2 import AuthJWT
 
 from book.router import router as book_router
@@ -15,6 +22,52 @@ import users.models
 app = FastAPI(
     swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"}
 )
+
+allowed_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins or ["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
+@app.exception_handler(HTTPException)
+def http_exception_handler(request: Request, exc: HTTPException):
+    detail = exc.detail
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "msg": detail if isinstance(detail, str) else detail,
+            "status": exc.status_code,
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "msg": "Validation failed",
+            "status": 422,
+            "data": exc.errors(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+def generic_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "msg": "Server error",
+            "status": 500,
+            "data": str(exc),
+        },
+    )
 
 
 @AuthJWT.load_config

@@ -65,9 +65,9 @@ def delete_category_router(category_id: int, session: Session = Depends(get_db),
 def create_book_router(
     data: schema.BookSchema,
     session: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    return crud.create_book(session, data)
+    return crud.create_book(session, data, current_user.id)
 
 
 @router.get('/detail-book/{book_id}', response_model=schema.BookDetailResponseSchema)
@@ -127,8 +127,13 @@ def update_review_router(
 
 
 @router.get('/book/reviews/list/{book_id}', response_model= list[schema.ReviewResponseSchema])
-def review_list_router(book_id: int, session: Session = Depends(get_db)):
-    return crud.review_list(session, book_id)
+def review_list_router(
+    book_id: int,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_db),
+):
+    return crud.review_list(session, book_id, limit, offset)
 
 
 @router.delete('/delete-review/{review_id}')

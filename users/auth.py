@@ -155,22 +155,23 @@ def token_refresh(Authorize: AuthJWT, db: Session):
 
 def logout(Authorize: AuthJWT, db: Session):
     try:
-        Authorize.jwt_refresh_token_required()
-        
-    except:
-        raise HTTPException(detail={
-            'msg': f'Token error',
-            'status': status.HTTP_400_BAD_REQUEST
-        }, status_code=status.HTTP_400_BAD_REQUEST)
-        
-    else:
-        jti = Authorize.get_raw_jwt()['jti']
-        token = BlackListToken(jti=jti)
-        
-        db.add(token)
-        db.commit()
-        db.refresh(token)
-        
-        return {
-            'msg': 'Logout',
-        }
+        Authorize.jwt_required()
+    except AuthJWTException:
+        try:
+            Authorize.jwt_refresh_token_required()
+        except AuthJWTException:
+            raise HTTPException(detail={
+                'msg': 'Token error',
+                'status': status.HTTP_400_BAD_REQUEST
+            }, status_code=status.HTTP_400_BAD_REQUEST)
+
+    jti = Authorize.get_raw_jwt()['jti']
+    token = BlackListToken(jti=jti)
+
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+
+    return {
+        'msg': 'Logout',
+    }

@@ -1,6 +1,6 @@
+import re
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from fastapi.exceptions import HTTPException
 from fastapi import status
 
@@ -30,10 +30,24 @@ def response_model(msg, status_code, data, etc = None):
         return {"msg": msg, "status": status_code, "etc": etc, "data": data}
     return {"msg": msg, "status": status_code, "data": data}
 
+
+def slugify(value: str) -> str:
+    value = value.strip().lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value)
+    value = re.sub(r"-+", "-", value).strip("-")
+    return value
+
 #AUTHOR
 
 def create_author(session: Session, data: AuthorSchema):
-    author = Author(fullname=data.fullname)
+    existing_author = session.query(Author).filter(Author.fullname.ilike(data.fullname.strip())).first()
+    if existing_author:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"msg": "Bu muallif allaqachon mavjud"},
+        )
+
+    author = Author(fullname=data.fullname.strip())
     session.add(author)
     session.commit()
     session.refresh(author)
@@ -42,7 +56,20 @@ def create_author(session: Session, data: AuthorSchema):
 
 def update_author(session: Session, data: UpdateAuthorSchema, author_id: int):
     author = get_object(session, author_id, Author)
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if payload.get("fullname"):
+        existing_author = (
+            session.query(Author)
+            .filter(Author.fullname.ilike(payload["fullname"].strip()), Author.id != author.id)
+            .first()
+        )
+        if existing_author:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"msg": "Bu muallif nomi allaqachon foydalanilgan"},
+            )
+
+    for key, value in payload.items():
         setattr(author, key, value)
     session.commit()
     session.refresh(author)
@@ -67,15 +94,36 @@ def author_delete(session: Session, author_id: int):
 
 #CATEGORY
 def create_category(session: Session, data: CategorySchema):
-    category = Category(title=data.title)
+    existing_category = session.query(Category).filter(Category.title.ilike(data.title.strip())).first()
+    if existing_category:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"msg": "Bu kategoriya allaqachon mavjud"},
+        )
+
+    category = Category(title=data.title.strip())
     session.add(category)
     session.commit()
     session.refresh(category)
     return response_model("Category created", status.HTTP_201_CREATED, category)
 
+
 def update_category(session: Session, data: UpdateCategorySchema, category_id: int):
     category = get_object(session, category_id, Category)
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if payload.get("title"):
+        existing_category = (
+            session.query(Category)
+            .filter(Category.title.ilike(payload["title"].strip()), Category.id != category.id)
+            .first()
+        )
+        if existing_category:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"msg": "Bu kategoriya nomi allaqachon foydalanilgan"},
+            )
+
+    for key, value in payload.items():
         setattr(category, key, value)
     session.commit()
     session.refresh(category)
@@ -101,10 +149,31 @@ def category_delete(session: Session, category_id: int):
 
 # BOOK 
 
-def create_book(session: Session, data: BookSchema):
+def create_book(session: Session, data: BookSchema, user_id: int):
     category = get_object(session, data.category_id, Category)
     author = get_object(session, data.author_id, Author)
-    book = Book(title = data.title, image = data.image, desc = data.desc, author_id = author.id, category_id = category.id )
+
+    existing_book = (
+        session.query(Book)
+        .filter(Book.title.ilike(data.title.strip()), Book.author_id == author.id)
+        .first()
+    )
+    if existing_book:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"msg": "Bu nomdagi kitob muallif uchun allaqachon mavjud"},
+        )
+
+    slug = slugify(f"{data.title}-{author.fullname}")
+    book = Book(
+        title=data.title.strip(),
+        slug=slug,
+        image=data.image,
+        desc=data.desc,
+        author_id=author.id,
+        category_id=category.id,
+        created_by=user_id,
+    )
     try:
         session.add(book)
         session.commit()
@@ -121,7 +190,37 @@ def create_book(session: Session, data: BookSchema):
 
 def update_book(session: Session, data: UpdateBookSchema, book_id: int):
     book = get_object(session, book_id, Book)
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+
+    if payload.get("author_id"):
+        get_object(session, payload["author_id"], Author)
+    if payload.get("category_id"):
+        get_object(session, payload["category_id"], Category)
+
+    new_title = payload.get("title", book.title)
+    new_author_id = payload.get("author_id", book.author_id)
+
+    duplicate_book = (
+        session.query(Book)
+        .filter(
+            Book.title.ilike(new_title.strip()),
+            Book.author_id == new_author_id,
+            Book.id != book.id,
+        )
+        .first()
+    )
+    if duplicate_book:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"msg": "Bu nomdagi kitob muallif uchun allaqachon mavjud"},
+        )
+
+    if payload.get("title") or payload.get("author_id"):
+        target_title = new_title.strip()
+        target_author = session.query(Author).filter(Author.id == new_author_id).first()
+        book.slug = slugify(f"{target_title}-{target_author.fullname}")
+
+    for key, value in payload.items():
         setattr(book, key, value)
     session.commit()
     session.refresh(book)
@@ -148,6 +247,7 @@ def book_detail(session: Session, book_id: int):
     return {
         "id": book.id,
         "title": book.title,
+        "slug": book.slug,
         "image": book.image,
         "desc": book.desc,
         "author": {
@@ -160,6 +260,9 @@ def book_detail(session: Session, book_id: int):
         },
         "avg_rating": round(avg_rating, 1) if avg_rating else None,
         "reviews_count": len(book.reviews),
+        "created_by": book.created_by,
+        "created_at": book.created_at,
+        "updated_at": book.updated_at,
         "reviews": [
             {
                 "id":r.id, 
@@ -204,12 +307,75 @@ def book_list(
     else:
         query = query.order_by(Book.id.desc())
 
-    return query.offset(offset).limit(limit).all()
+    books = query.offset(offset).limit(limit).all()
+    book_ids = [book.id for book in books]
+
+    avg_ratings = {}
+    review_counts = {}
+    if book_ids:
+        avg_data = (
+            session.query(Review.book_id, func.avg(Review.rating))
+            .filter(Review.book_id.in_(book_ids))
+            .group_by(Review.book_id)
+            .all()
+        )
+        count_data = (
+            session.query(Review.book_id, func.count(Review.id))
+            .filter(Review.book_id.in_(book_ids))
+            .group_by(Review.book_id)
+            .all()
+        )
+        avg_ratings = {book_id: avg for book_id, avg in avg_data}
+        review_counts = {book_id: count for book_id, count in count_data}
+
+    result = []
+    for book in books:
+        result.append({
+            "id": book.id,
+            "title": book.title,
+            "slug": book.slug,
+            "image": book.image,
+            "desc": book.desc,
+            "created_at": book.created_at,
+            "updated_at": book.updated_at,
+            "created_by": book.created_by,
+            "author": {
+                "id": book.author.id,
+                "fullname": book.author.fullname,
+            } if book.author else None,
+            "category": {
+                "id": book.category.id,
+                "title": book.category.title,
+            } if book.category else None,
+            "avg_rating": round(avg_ratings.get(book.id), 1) if avg_ratings.get(book.id) is not None else None,
+            "reviews_count": review_counts.get(book.id, 0),
+        })
+
+    return result
 
 
 def create_review(session: Session, data: ReviewSchema, user_id: int):
+    get_object(session, data.book_id, Book)
+
+    if not data.summary.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"msg": "Sharh matni bo'sh bo'lishi mumkin emas"},
+        )
+
+    existing_review = (
+        session.query(Review)
+        .filter(Review.book_id == data.book_id, Review.user_id == user_id)
+        .first()
+    )
+    if existing_review:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"msg": "Siz allaqachon ushbu kitob uchun sharh qoldirgansiz"},
+        )
+
     review = Review(
-        summary=data.summary,
+        summary=data.summary.strip(),
         rating=data.rating,
         book_id=data.book_id,
         user_id=user_id,
@@ -237,8 +403,16 @@ def update_review(session: Session, data: UpdateReviewSchema, review_id: int, cu
     return response_model("Review updated", status.HTTP_200_OK, review)
 
 
-def review_list(session: Session, book_id: int):
-    reviews = session.query(Review).filter(Review.book_id == book_id).all()
+def review_list(session: Session, book_id: int, limit: int = 20, offset: int = 0):
+    get_object(session, book_id, Book)
+    reviews = (
+        session.query(Review)
+        .filter(Review.book_id == book_id)
+        .order_by(Review.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     result = []
     for r in reviews:
         result.append({
@@ -266,6 +440,8 @@ def delete_review(session: Session, review_id: int, current_user):
 
 
 def toggle_wishlist(session: Session, data: WishlistSchema, user_id: int):
+    get_object(session, data.book_id, Book)
+
     existing = (
         session.query(Wishlist)
         .filter(Wishlist.book_id == data.book_id, Wishlist.user_id == user_id)
